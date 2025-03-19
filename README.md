@@ -7,6 +7,5 @@ Cara Menjalankan program
 3. Jalankan perintah `docker compose up -d`
 4. Jalankan migrtions dan seeder dengan `go run migrations/main.go -steps=1 -forceMigration=false` atau dengan `make migrate-up`
 5. Import collection dari `https://documenter.getpostman.com/view/20402111/2sAYkEqzMu`
-6. Jalankan program dengan `go run main.go`
 
 Untuk proses migrations, bisa dilihat readme didalam folder migrations
