@@ -34,11 +34,11 @@ func Logger(level, message string, err error) {
 	case LoggerLevelWarn:
 		log.Warn().Str("message", message).Msg("")
 	case LoggerLevelError:
-		log.Error().Str("path", path).Str("line", fmt.Sprint(line)).Err(err).Send()
+		log.Error().Str("path", path).Str("message", message).Str("line", fmt.Sprint(line)).Err(err).Send()
 	case LoggerLevelFatal:
-		log.Fatal().Str("path", path).Str("line", fmt.Sprint(line)).Err(err).Send()
+		log.Fatal().Str("path", path).Str("message", message).Str("line", fmt.Sprint(line)).Err(err).Send()
 	case LoggerLevelPanic:
-		log.Panic().Str("path", path).Str("line", fmt.Sprint(line)).Err(err).Send()
+		log.Panic().Str("path", path).Str("message", message).Str("line", fmt.Sprint(line)).Err(err).Send()
 	default:
 		log.Error().Stack().Err(errors.New("logger level invalid")).Send()
 	}

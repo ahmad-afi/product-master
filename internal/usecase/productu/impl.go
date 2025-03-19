@@ -2,11 +2,13 @@ package productu
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"product-master/internal/domain/productd"
+	redisRepo "product-master/internal/domain/redis_repo"
 	"product-master/internal/helper"
 	"product-master/internal/utils"
 
@@ -15,10 +17,11 @@ import (
 
 type ProductUsecase struct {
 	productRepo productd.ProductRepo
+	redisRepo   redisRepo.RedisUsersRepository
 }
 
-func NewProductUsecase(productRepo productd.ProductRepo) ProductUsc {
-	return &ProductUsecase{productRepo: productRepo}
+func NewProductUsecase(productRepo productd.ProductRepo, redisRepo redisRepo.RedisUsersRepository) ProductUsc {
+	return &ProductUsecase{productRepo: productRepo, redisRepo: redisRepo}
 }
 
 func (u *ProductUsecase) ListCategory(ctx context.Context) (res []ListCategory, err *helper.ErrorStruct) {
@@ -42,57 +45,87 @@ func (u *ProductUsecase) ListProduct(ctx context.Context, filter FilterProduct) 
 	filter.DefaultPagination()
 	res.Data = make([]ListProduct, 0)
 
-	if filter.OrderBy != "" {
-		switch filter.OrderBy {
-		case "date":
-			filter.OrderBy = "created_at"
-		case "price", "name":
-		default:
-			err = helper.HelperErrorResponse(fmt.Errorf("invalid orderby"), "invalid orderby")
+	key := fmt.Sprintf("search:product:id:%s:name:%s:category_id:%s:orderby:%s:sorttype:%s:page:%d:limit:%d",
+		filter.ID, filter.Name, filter.CategoryID, filter.OrderBy, filter.SortType, filter.Page, filter.Limit)
+
+	resData, errRepo := u.redisRepo.GetData(ctx, key)
+	if err != nil || resData == nil {
+		err = nil
+		helper.Logger(helper.LoggerLevelError, "productu.ListProduct Error at redisRepo.GetData", errRepo)
+		if filter.OrderBy != "" {
+			switch filter.OrderBy {
+			case "date":
+				filter.OrderBy = "created_at"
+			case "price", "name":
+			default:
+				err = helper.HelperErrorResponse(fmt.Errorf("invalid orderby"), "invalid orderby")
+				return
+			}
+		}
+
+		if strings.EqualFold("asc", filter.SortType) {
+			filter.SortType = "asc"
+		} else if strings.EqualFold("desc", filter.SortType) {
+			filter.SortType = "desc"
+		} else {
+			filter.SortType = "asc"
+		}
+
+		filterRepo := productd.FilterProduct{
+			ID:               filter.ID,
+			Name:             filter.Name,
+			CategoryID:       filter.CategoryID,
+			OrderBy:          filter.OrderBy,
+			SortType:         filter.SortType,
+			PaginationStruct: filter.PaginationStruct,
+		}
+
+		resRepo, errRepo := u.productRepo.GetListProduct(ctx, filterRepo)
+		if errRepo != nil {
+			helper.Logger(helper.LoggerLevelError, "productu.ListProduct Error at GetListCategory", errRepo)
+			err = helper.HelperErrorResponse(errRepo)
+			return
+		}
+		res.TotalData, errRepo = u.productRepo.CountListProduct(ctx, filterRepo)
+		if errRepo != nil {
+			helper.Logger(helper.LoggerLevelError, "productu.ListProduct Error at CountListProduct", errRepo)
+			err = helper.HelperErrorResponse(errRepo)
+			return
+		}
+
+		for _, v := range resRepo {
+			res.Data = append(res.Data, ListProduct{
+				ID:           v.ID,
+				Name:         v.Name,
+				CateogryName: v.CategoryName,
+				Price:        v.Price,
+				CreatedAt:    v.CreatedAt,
+				UpdatedAt:    v.UpdatedAt,
+			})
+		}
+
+		resByte, errMarshal := json.Marshal(res)
+		if err != nil {
+			helper.Logger(helper.LoggerLevelError, "productu.ListProduct Error at json.Marshal", errMarshal)
+			err = helper.HelperErrorResponse(errMarshal)
+			return
+		}
+
+		go func() {
+			errRepo = u.redisRepo.SetData(context.Background(), key, string(resByte), time.Duration(time.Hour))
+			if err != nil {
+				helper.Logger(helper.LoggerLevelError, "productu.ListProduct Error at redisRepo.SetData", errRepo)
+			}
+		}()
+	} else {
+		errMarshal := json.Unmarshal([]byte(*resData), &res)
+		if errMarshal != nil {
+			helper.Logger(helper.LoggerLevelError, "productu.ListProduct Error at json.Unmarshal", errMarshal)
+			err = helper.HelperErrorResponse(errMarshal)
 			return
 		}
 	}
 
-	if strings.EqualFold("asc", filter.SortType) {
-		filter.SortType = "asc"
-	} else if strings.EqualFold("desc", filter.SortType) {
-		filter.SortType = "desc"
-	} else {
-		filter.SortType = "asc"
-	}
-
-	filterRepo := productd.FilterProduct{
-		ID:               filter.ID,
-		Name:             filter.Name,
-		CategoryID:       filter.CategoryID,
-		OrderBy:          filter.OrderBy,
-		SortType:         filter.SortType,
-		PaginationStruct: filter.PaginationStruct,
-	}
-
-	resRepo, errRepo := u.productRepo.GetListProduct(ctx, filterRepo)
-	if errRepo != nil {
-		helper.Logger(helper.LoggerLevelError, "productu.ListProduct Error at GetListCategory", errRepo)
-		err = helper.HelperErrorResponse(errRepo)
-		return
-	}
-	res.TotalData, errRepo = u.productRepo.CountListProduct(ctx, filterRepo)
-	if errRepo != nil {
-		helper.Logger(helper.LoggerLevelError, "productu.ListProduct Error at CountListProduct", errRepo)
-		err = helper.HelperErrorResponse(errRepo)
-		return
-	}
-
-	for _, v := range resRepo {
-		res.Data = append(res.Data, ListProduct{
-			ID:           v.ID,
-			Name:         v.Name,
-			CateogryName: v.CategoryName,
-			Price:        v.Price,
-			CreatedAt:    v.CreatedAt,
-			UpdatedAt:    v.UpdatedAt,
-		})
-	}
 	return
 }
 

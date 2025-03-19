@@ -5,8 +5,10 @@ import (
 	"io"
 	"os"
 	"product-master/internal/domain/productd"
+	redisRepo "product-master/internal/domain/redis_repo"
 	"product-master/internal/helper"
 	"product-master/internal/infrastructure/postgre"
+	"product-master/internal/infrastructure/redis"
 	"product-master/internal/usecase/productu"
 	"product-master/internal/utils"
 
@@ -66,11 +68,13 @@ func NewContainer(envName ...string) *Container {
 	if err != nil {
 		panic(err)
 	}
+	redisClient := redis.NewRedisClient()
 
 	sqlTrx := utils.NewSQLTransaction(postgre)
 	productRepo := productd.NewProductDomain(postgre, sqlTrx)
+	redisRepo := redisRepo.NewRedisRepoUsers(redisClient)
 
-	productUsc := productu.NewProductUsecase(productRepo)
+	productUsc := productu.NewProductUsecase(productRepo, redisRepo)
 
 	cont := Container{
 		Apps:       appsConf,
