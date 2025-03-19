@@ -8,3 +8,5 @@ Cara Menjalankan program
 4. Import collection dari `https://documenter.getpostman.com/view/20402111/2sAYkEqzMu`
 5. Copy `.env-exampple` menjadi `.env` lalu isi variabel yang sesuai
 6. Jalankan program dengan `go run main.go`
+
+Untuk proses migrations, bisa dilihat readme didalam folder migrations
