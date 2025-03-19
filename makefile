@@ -29,3 +29,6 @@ migrate-force: ## Force migration when dirty state happen, example : make migrat
 
 setup-env:
 	docker compose up redis_product_master postgre_product_master -d
+
+dc-restart:
+	docker compose restart

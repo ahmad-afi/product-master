@@ -1,5 +1,16 @@
-version: "3"
 services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      postgre_product_master:
+        condition: service_healthy
+      redis_product_master:
+        condition: service_healthy
+
   redis_product_master:
     image: redis:alpine3.16
     container_name: redis_product_master
@@ -10,6 +21,12 @@ services:
       - networks_product_master
     volumes:
       - redis_product_master:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "1234", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
   postgre_product_master:
     image: postgres:15.4
     container_name: pg_product_master
@@ -22,7 +39,7 @@ services:
     networks:
       - networks_product_master
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U user"]
       interval: 10s
       timeout: 5s
       retries: 3

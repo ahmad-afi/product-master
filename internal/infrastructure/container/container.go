@@ -49,7 +49,7 @@ func NewContainer(envName ...string) *Container {
 
 	err := godotenv.Load(fmt.Sprintf("%s/%s", helper.ProjectRootPath, env))
 	if err != nil {
-		panic(err)
+		fmt.Println("Warning: .env file not found, using system environment variables")
 	}
 
 	var appsConf = Apps{
